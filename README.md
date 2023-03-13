@@ -14,7 +14,7 @@ aws codebuild delete-project --name <project name>
 - [jq](https://stedolan.github.io/jq/)
 - [aws cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 
-## USAGE:
+## USAGE
 ```bash
   Command Tools base on AWS Command For Codebuild
 
