@@ -9,3 +9,23 @@ aws codebuild delete-project --cli-input-json file://<json>
 aws codebuild start-build --project-name  <project name>
 aws codebuild delete-project --name <project name>
 ```
+
+## USAGE:
+```bash
+  Command Tools base on AWS Command For Codebuild
+
+AVAILABLE 'ARG':
+
+  --build-one          Build Project
+  --list-all           List Project
+  --export-all         Export All Codebuild Project
+  --create-webhook     Create auto build trigger webhook on project
+  --delete-webhook     Delete webhook on project
+  --create-new         Create New Project include webhook
+  --update-one         Update project
+  --delete-one         Delete project
+
+USAGE:
+./awscli <ARG> <PROJECT NAME>
+
+```

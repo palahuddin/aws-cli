@@ -6,7 +6,7 @@ listProject(){
 }
 
 listPattern(){
-  cat $0 |grep "  \--" |sed 's/ //g;s/)//g;s/\"//g'
+  cat $0 |grep "  \--" |sed 's/\#//g;s/)//g;s/\"//g'
 }
 
 createWebhook() {
@@ -19,14 +19,14 @@ createWebhook() {
 command=$1
 
 case $command in
-  --build-one)
+  --build-one)          #Build Project
     PROJECT=$2
     aws codebuild start-build --project-name $PROJECT
   ;;
-  --list-all)
+  --list-all)           #List Project
     aws codebuild list-projects --output json |jq -r '.projects[]'
   ;;
-  --export-all)
+  --export-all)         #Export All Codebuild Project
         echo "--- Backup to folder $(date +%d%m%Y)-json ---"
         mkdir -p $(date +%d%m%Y)-json json
         arr=( `aws codebuild list-projects --output json |jq -r '.projects[]'`)
@@ -42,38 +42,36 @@ case $command in
             jq 'del(.arn,.webhook,.created,.lastModified,.badge)' $(date +%d%m%Y)-json/$i.json > json/$i.json
         done
     ;;
-  --create-webhook)
-        PROJECT=$2
-        createWebhook
+  --create-webhook)     #Create auto build trigger webhook on project
+    PROJECT=$2
+    createWebhook
 
     ;;
-
-  --update-webhook)
-        PROJECT=$2
-
-    ;;
-
-  --delete-webhook)
+  --delete-webhook)     #Delete webhook on project
     aws codebuild delete-webhook --project-name $2
     ;;
 
-  --create-new)
+  --create-new)         #Create New Project include webhook
     PROJECT=$2
-    echo "q"|aws codebuild create-project --cli-input-json file://json/$PROJECT.json
+    aws codebuild create-project --cli-input-json file://json/$PROJECT.json
     createWebhook
     ;;
     
-  --update-one)
+  --update-one)         #Update project
     PROJECT=$2
+    aws codebuild update-project --cli-input-json file://json/$PROJECT.json
+
     ;;
 
-  --delete-one)
+  --delete-one)         #Delete project
     PROJECT=$2
     aws codebuild delete-project --name $PROJECT
     ;;
   *)
 echo "arg required"
 echo "---"
+echo " "
+echo "  Command Tools base on AWS Command For Codebuild"
 echo "
 LIST 'PROJECT NAME':
 
