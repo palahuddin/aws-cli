@@ -1,0 +1,14 @@
+listProject(){
+  aws codebuild list-projects --output json |jq -r '.projects[]'
+}
+
+listPattern(){
+  cat $0 |grep "  \--" |sed 's/\#//g;s/)//g;s/\"//g'
+}
+
+createWebhook() {
+  JSONFILE=`cat template/webhook.json |sed "s/XPROJECT/$PROJECT/g"` 
+  echo $JSONFILE > webhook-$PROJECT.json
+  aws codebuild create-webhook --cli-input-json file://webhook-$PROJECT.json --no-cli-auto-prompt
+  rm -rf webhook-$PROJECT.json
+}
