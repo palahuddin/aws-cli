@@ -1,7 +1,7 @@
 # AWS CLI
 
 ## Codebuild Command
-bash```
+```bash
 aws codebuild create-project --cli-input-json file://<json>
 aws codebuild update-project --cli-input-json file://<json>
 aws codebuild delete-project --cli-input-json file://<json>
