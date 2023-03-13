@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 listProject(){
   aws codebuild list-projects --output json |jq -r '.projects[]'
 }
@@ -27,7 +28,7 @@ case $command in
   ;;
   --export-all)
         echo "--- Backup to folder $(date +%d%m%Y)-json ---"
-        mkdir -p $(date +%d%m%Y)-json
+        mkdir -p $(date +%d%m%Y)-json json
         arr=( `aws codebuild list-projects --output json |jq -r '.projects[]'`)
         for i in ${arr[@]}
         do
