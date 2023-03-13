@@ -1,0 +1,14 @@
+{
+    "projectName": "XPROJECT",
+    "filterGroups": [
+      [
+        {
+          "type": "EVENT",
+          "pattern": "PUSH",
+          "excludeMatchedPattern": false
+        }
+      ]
+    ],
+    "buildType": "BUILD"
+}
+  
