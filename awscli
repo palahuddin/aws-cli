@@ -1,18 +1,33 @@
 #!/bin/bash
 
-source src/function
+
+listProject(){
+  aws codebuild list-projects --output json |jq -r '.projects[]'
+}
+
+listPattern(){
+  cat $0 |grep "  \--" |sed 's/ //g;s/)//g;s/\"//g'
+}
+
+createWebhook() {
+  JSONFILE=`cat template/webhook.json |sed "s/XPROJECT/$PROJECT/g"` 
+  echo $JSONFILE > webhook-$PROJECT.json
+  aws codebuild create-webhook --cli-input-json file://webhook-$PROJECT.json > logs
+  cat logs
+  rm -rf webhook-$PROJECT.json
+}
 
 command=$1
 
 case $command in
-  --build-one)          #Build Project
+  --build-one)
     PROJECT=$2
-    aws codebuild start-build --project-name $PROJECT
+    aws codebuild start-build --project-name $PROJECT > logs
   ;;
-  --list-all)           #List Project
+  --list-all)
     aws codebuild list-projects --output json |jq -r '.projects[]'
   ;;
-  --export-all)         #Export All Codebuild Project
+  --export-all)
         echo "--- Backup to folder $(date +%d%m%Y)-json ---"
         mkdir -p $(date +%d%m%Y)-json json
         arr=( `aws codebuild list-projects --output json |jq -r '.projects[]'`)
@@ -28,36 +43,104 @@ case $command in
             jq 'del(.arn,.webhook,.created,.lastModified,.badge)' $(date +%d%m%Y)-json/$i.json > json/$i.json
         done
     ;;
-  --create-webhook)     #Create auto build trigger webhook on project
-    PROJECT=$2
-    createWebhook
+  --create-webhook)
+        PROJECT=$2
+        createWebhook
 
     ;;
-  --delete-webhook)     #Delete webhook on project
+
+  --update-webhook)
+        PROJECT=$2
+
+    ;;
+
+  --delete-webhook)
     aws codebuild delete-webhook --project-name $2
     ;;
 
-  --create-new)         #Create New Project include webhook
+  --create-new)
     PROJECT=$2
-    aws codebuild create-project --cli-input-json file://json/$PROJECT.json
+    aws codebuild create-project --cli-input-json file://json/$PROJECT.json > logs
+    cat logs
     createWebhook
     ;;
     
-  --update-one)         #Update project
+  --update-one)
     PROJECT=$2
-    aws codebuild update-project --cli-input-json file://json/$PROJECT.json
-
+    aws codebuild update-project --cli-input-json file://json/$PROJECT.json > logs
+    cat logs
     ;;
 
-  --delete-one)         #Delete project
+  --delete-one)
     PROJECT=$2
-    aws codebuild delete-project --name $PROJECT
+    aws codebuild delete-project --name $PROJECT > logs
+    cat logs
+    ;;
+  --scale-ng)
+    PROJECT=$2
+    eksctl scale nodegroup --cluster $CLUSTER --name $PROJECT --nodes $3 --nodes-max $4 --nodes-min $5
+    $0 --ng
+    ;;
+  --ng)
+    eksctl get nodegroup --cluster $CLUSTER
+    ;;
+  --init-pv)
+    if [ -z $CLUSTER ];then
+      echo "Please set cluster name, cluster name required."
+      read -r CLUSTER
+    fi
+    eksctl utils associate-iam-oidc-provider --cluster $CLUSTER --approve
+
+    git clone https://github.com/kubernetes-sigs/aws-ebs-csi-driver.git \
+      && cd aws-ebs-csi-driver/deploy/kubernetes/overlays/stable/ \
+      && kubectl delete -k ./ecr \
+      && kubectl apply -k ./ecr \
+      && cd ../../../../../ \
+      && rm -rf aws-ebs-csi-driver
+
+    XOIDC=`aws eks describe-cluster \
+      --name $CLUSTER \
+      --query "cluster.identity.oidc.issuer" \
+      --output text |sed 's/https:\/\///g'`
+
+    XACCOUNT=`aws sts get-caller-identity \
+      --query "Account" \
+      --output text`
+
+    aws eks create-addon \
+      --cluster-name $CLUSTER \
+      --addon-name aws-ebs-csi-driver \
+      --service-account-role-arn arn:aws:iam::$XACCOUNT:role/AmazonEKS_EBS_CSI_DriverRole_$CLUSTER
+
+    aws eks describe-addon \
+      --cluster-name $CLUSTER \
+      --addon-name aws-ebs-csi-driver \
+      --query "addon.addonVersion" \
+      --output text
+
+    cat template/aws-ebs-csi-driver-trust-policy.json \
+      |sed "s|XOIDC|$XOIDC|g;s|XACCOUNT|$XACCOUNT|g" > csi-driver-$CLUSTER.json
+
+    aws iam create-role \
+      --role-name AmazonEKS_EBS_CSI_DriverRole_$CLUSTER \
+      --assume-role-policy-document file://"csi-driver-$CLUSTER.json"
+
+    aws iam attach-role-policy \
+      --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+      --role-name AmazonEKS_EBS_CSI_DriverRole_$CLUSTER
+
+    kubectl annotate serviceaccount ebs-csi-controller-sa \
+        -n kube-system \
+        eks.amazonaws.com/role-arn=arn:aws:iam::$XACCOUNT:role/AmazonEKS_EBS_CSI_DriverRole_$CLUSTER
+
+    kubectl get serviceaccount ebs-csi-controller-sa \
+        -n kube-system -o yaml
+
+    kubectl rollout restart deployment ebs-csi-controller -n kube-system
     ;;
   *)
 echo "arg required"
 echo "---"
-echo " "
-echo "  Command Tools base on AWS Command For Codebuild"
 echo "
 LIST 'PROJECT NAME':
 
