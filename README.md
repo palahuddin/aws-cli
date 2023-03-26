@@ -16,18 +16,22 @@ aws codebuild delete-project --name <project name>
 
 ## USAGE
 ```bash
-  Command Tools base on AWS Command For Codebuild
+  Command Tools base on AWS Command
 
 AVAILABLE 'ARG':
 
-  --build-one          Build Project
-  --list-all           List Project
-  --export-all         Export All Codebuild Project
-  --create-webhook     Create auto build trigger webhook on project
-  --delete-webhook     Delete webhook on project
-  --create-new         Create New Project include webhook
-  --update-one         Update project
-  --delete-one         Delete project
+  --build-one          Build codebuild project
+  --list-all           List codebuild project
+  --export-all         Backup codebuild project as json file
+  --create-webhook     Create webhook codebuild project
+  --update-webhook     Update webhook codebuild project
+  --delete-webhook     Delete webhook codebuild project   
+  --create-new         Create new codebuild project including webhook 
+  --update-one         Update codebuild project   
+  --delete-one         Delete codebuild project   
+  --scale-ng           Scale Up nodegroup eks 
+  --ng                 Get EKS Cluster nodegroup list
+  --init-pv            Setup EKS Cluster persistence volume AWS EBS Driver  
 
 USAGE:
 ./awscli <ARG> <PROJECT NAME>

@@ -6,7 +6,14 @@ listProject(){
 }
 
 listPattern(){
-  cat $0 |grep "  \--" |sed 's/ //g;s/)//g;s/\"//g'
+  cat $0 |grep "  \--" |grep ")" |sed 's/)//g;s/\"//g;s/##//g'
+}
+
+setCLuster() {
+  if [ -z $CLUSTER ];then
+    echo "Please set cluster name, cluster name required."
+    read -r CLUSTER
+  fi
 }
 
 createWebhook() {
@@ -20,14 +27,14 @@ createWebhook() {
 command=$1
 
 case $command in
-  --build-one)
+  --build-one)          ##Build codebuild project
     PROJECT=$2
     aws codebuild start-build --project-name $PROJECT > logs
   ;;
-  --list-all)
+  --list-all)           ##List codebuild project
     aws codebuild list-projects --output json |jq -r '.projects[]'
   ;;
-  --export-all)
+  --export-all)         ##Backup codebuild project as json file
         echo "--- Backup to folder $(date +%d%m%Y)-json ---"
         mkdir -p $(date +%d%m%Y)-json json
         arr=( `aws codebuild list-projects --output json |jq -r '.projects[]'`)
@@ -43,52 +50,46 @@ case $command in
             jq 'del(.arn,.webhook,.created,.lastModified,.badge)' $(date +%d%m%Y)-json/$i.json > json/$i.json
         done
     ;;
-  --create-webhook)
+  --create-webhook)     ##Create webhook codebuild project
         PROJECT=$2
         createWebhook
 
     ;;
-
-  --update-webhook)
+  --update-webhook)     ##Update webhook codebuild project
         PROJECT=$2
 
     ;;
-
-  --delete-webhook)
+  --delete-webhook)     ##Delete webhook codebuild project   
     aws codebuild delete-webhook --project-name $2
     ;;
-
-  --create-new)
+  --create-new)         ##Create new codebuild project including webhook 
     PROJECT=$2
     aws codebuild create-project --cli-input-json file://json/$PROJECT.json > logs
     cat logs
     createWebhook
     ;;
-    
-  --update-one)
+  --update-one)         ##Update codebuild project   
     PROJECT=$2
     aws codebuild update-project --cli-input-json file://json/$PROJECT.json > logs
     cat logs
     ;;
-
-  --delete-one)
+  --delete-one)         ##Delete codebuild project   
     PROJECT=$2
     aws codebuild delete-project --name $PROJECT > logs
     cat logs
     ;;
-  --scale-ng)
+  --scale-ng)           ##Scale Up nodegroup eks 
+    setCLuster
     PROJECT=$2
     eksctl scale nodegroup --cluster $CLUSTER --name $PROJECT --nodes $3 --nodes-max $4 --nodes-min $5
     $0 --ng
     ;;
-  --ng)
+  --ng)                 ##Get EKS Cluster nodegroup list
+    setCLuster
     eksctl get nodegroup --cluster $CLUSTER
     ;;
-  --init-pv)
-    if [ -z $CLUSTER ];then
-      echo "Please set cluster name, cluster name required."
-      read -r CLUSTER
-    fi
+  --init-pv)            ##Setup EKS Cluster persistence volume AWS EBS Driver  
+    setCLuster
     eksctl utils associate-iam-oidc-provider --cluster $CLUSTER --approve
 
     git clone https://github.com/kubernetes-sigs/aws-ebs-csi-driver.git \
@@ -97,6 +98,8 @@ case $command in
       && kubectl apply -k ./ecr \
       && cd ../../../../../ \
       && rm -rf aws-ebs-csi-driver
+    
+    sleep 1
 
     XOIDC=`aws eks describe-cluster \
       --name $CLUSTER \
@@ -117,7 +120,8 @@ case $command in
       --addon-name aws-ebs-csi-driver \
       --query "addon.addonVersion" \
       --output text
-
+    
+    sleep 1
     cat template/aws-ebs-csi-driver-trust-policy.json \
       |sed "s|XOIDC|$XOIDC|g;s|XACCOUNT|$XACCOUNT|g" > csi-driver-$CLUSTER.json
 
@@ -142,7 +146,7 @@ case $command in
 echo "arg required"
 echo "---"
 echo "
-LIST 'PROJECT NAME':
+LIST 'PROJECT CODEBUILD':
 
 $(listProject)
 
