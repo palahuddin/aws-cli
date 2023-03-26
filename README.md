@@ -13,6 +13,7 @@ aws codebuild delete-project --name <project name>
 ## PREREQUISITE
 - [jq](https://stedolan.github.io/jq/)
 - [aws cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+- [eksctl](https://docs.aws.amazon.com/eks/latest/userguide/eksctl.html)
 
 ## USAGE
 ```bash
