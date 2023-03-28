@@ -1,29 +1,6 @@
 #!/bin/bash
 
-
-listProject(){
-  aws codebuild list-projects --output json |jq -r '.projects[]'
-}
-
-listPattern(){
-  cat $0 |grep "  \--" |grep ")" |sed 's/)//g;s/\"//g;s/##//g'
-}
-
-setCLuster() {
-  if [ -z $CLUSTER ];then
-    echo "Please set cluster name, cluster name required."
-    read -r CLUSTER
-  fi
-}
-
-createWebhook() {
-  JSONFILE=`cat template/webhook.json |sed "s/XPROJECT/$PROJECT/g"` 
-  echo $JSONFILE > webhook-$PROJECT.json
-  aws codebuild create-webhook --cli-input-json file://webhook-$PROJECT.json > logs
-  cat logs
-  rm -rf webhook-$PROJECT.json
-}
-
+source src/function
 command=$1
 
 case $command in
