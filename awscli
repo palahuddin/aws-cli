@@ -1,17 +1,33 @@
 #!/bin/bash
 
-source src/function
+
+listProject(){
+  aws codebuild list-projects --output json |jq -r '.projects[]'
+}
+
+listPattern(){
+  cat $0 |grep "  \--" |grep ")"|sed 's/ //g;s/)//g;s/\"//g'
+}
+
+createWebhook() {
+  JSONFILE=`cat template/webhook.json |sed "s/XPROJECT/$PROJECT/g"` 
+  echo $JSONFILE > webhook-$PROJECT.json
+  aws codebuild create-webhook --cli-input-json file://webhook-$PROJECT.json > logs
+  cat logs
+  rm -rf webhook-$PROJECT.json
+}
+
 command=$1
 
 case $command in
-  --build-one)          ##Build codebuild project
+  --build-one)
     PROJECT=$2
     aws codebuild start-build --project-name $PROJECT > logs
   ;;
-  --list-all)           ##List codebuild project
+  --list-all)
     aws codebuild list-projects --output json |jq -r '.projects[]'
   ;;
-  --export-all)         ##Backup codebuild project as json file
+  --export-all)
         echo "--- Backup to folder $(date +%d%m%Y)-json ---"
         mkdir -p $(date +%d%m%Y)-json json
         arr=( `aws codebuild list-projects --output json |jq -r '.projects[]'`)
@@ -27,46 +43,97 @@ case $command in
             jq 'del(.arn,.webhook,.created,.lastModified,.badge)' $(date +%d%m%Y)-json/$i.json > json/$i.json
         done
     ;;
-  --create-webhook)     ##Create webhook codebuild project
+  --create-webhook)
         PROJECT=$2
         createWebhook
 
     ;;
-  --update-webhook)     ##Update webhook codebuild project
+
+  --update-webhook)
         PROJECT=$2
 
     ;;
-  --delete-webhook)     ##Delete webhook codebuild project   
+
+  --delete-webhook)
     aws codebuild delete-webhook --project-name $2
     ;;
-  --create-new)         ##Create new codebuild project including webhook 
+
+  --create-new)
     PROJECT=$2
     aws codebuild create-project --cli-input-json file://json/$PROJECT.json > logs
     cat logs
     createWebhook
     ;;
-  --update-one)         ##Update codebuild project   
+    
+  --update-one)
     PROJECT=$2
     aws codebuild update-project --cli-input-json file://json/$PROJECT.json > logs
     cat logs
     ;;
-  --delete-one)         ##Delete codebuild project   
+
+  --delete-one)
     PROJECT=$2
     aws codebuild delete-project --name $PROJECT > logs
     cat logs
     ;;
-  --scale-ng)           ##Scale Up nodegroup eks 
-    setCLuster
+  --scale-ng)
     PROJECT=$2
     eksctl scale nodegroup --cluster $CLUSTER --name $PROJECT --nodes $3 --nodes-max $4 --nodes-min $5
     $0 --ng
     ;;
-  --ng)                 ##Get EKS Cluster nodegroup list
-    setCLuster
+  --ng)
     eksctl get nodegroup --cluster $CLUSTER
     ;;
-  --init-pv)            ##Setup EKS Cluster persistence volume AWS EBS Driver  
-    setCLuster
+  --init-fargate)
+    XACCOUNT=`aws sts get-caller-identity \
+          --query "Account" \
+          --output text`
+    
+    mkdir -p fargate/ && \
+      cat template/fargate.json |sed "s|XACCOUNT|$XACCOUNT|g" > fargate/pod-execution-role-trust-policy.json
+
+    aws iam create-role \
+      --role-name AmazonEKSFargatePodExecutionRole \
+      --assume-role-policy-document file://"fargate/pod-execution-role-trust-policy.json"
+
+    aws iam attach-role-policy \
+      --policy-arn arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy \
+      --role-name AmazonEKSFargatePodExecutionRole
+    sleep 5
+    if [ -z $CLUSTER ];then
+      eksctl get cluster
+      echo "==== Please Input Value ===="
+      echo "Please set cluster name, cluster name required."
+      read -r CLUSTER
+    fi
+
+    XSUBNET1=`eksctl get cluster $CLUSTER -o json |jq -r '.[].ResourcesVpcConfig.SubnetIds[0]'`
+    XSUBNET2=`eksctl get cluster $CLUSTER -o json |jq -r '.[].ResourcesVpcConfig.SubnetIds[1]'`
+    echo "==== Please Input Value ===="
+    echo "--Define 'Fargate Name'"
+    read -r XFARGATENAME
+    echo "--Define 'Namespace'"
+    read -r XNSPACE
+    
+
+    mkdir -p fargate/ && \
+      cat template/fargate.yaml |sed "s|XACCOUNT|$XACCOUNT|g; \
+        s|XFARGATENAME|$XFARGATENAME|g; \
+        s|XNSPACE|$XNSPACE|g; \
+        s|XSUBNET1|$XSUBNET1|g; \
+        s|XSUBNET2|$XSUBNET2|g; \
+        s|AWS_DEFAULT_REGION|$AWS_DEFAULT_REGION|g; \
+        s|CLUSTER|$CLUSTER|g" > fargate/fargate-eks-config.yaml
+    
+    eksctl create fargateprofile -f fargate/fargate-eks-config.yaml
+    
+    ;;
+  --init-pv)
+    if [ -z $CLUSTER ];then
+      eksctl get cluster
+      echo "Please set cluster name, cluster name required."
+      read -r CLUSTER
+    fi
     eksctl utils associate-iam-oidc-provider --cluster $CLUSTER --approve
 
     git clone https://github.com/kubernetes-sigs/aws-ebs-csi-driver.git \
@@ -75,8 +142,6 @@ case $command in
       && kubectl apply -k ./ecr \
       && cd ../../../../../ \
       && rm -rf aws-ebs-csi-driver
-    
-    sleep 1
 
     XOIDC=`aws eks describe-cluster \
       --name $CLUSTER \
@@ -97,9 +162,8 @@ case $command in
       --addon-name aws-ebs-csi-driver \
       --query "addon.addonVersion" \
       --output text
-    
-    sleep 1
-    cat template/aws-ebs-csi-driver-trust-policy.json \
+
+    cat aws-ebs-csi-driver-trust-policy.json \
       |sed "s|XOIDC|$XOIDC|g;s|XACCOUNT|$XACCOUNT|g" > csi-driver-$CLUSTER.json
 
     aws iam create-role \
@@ -123,7 +187,7 @@ case $command in
 echo "arg required"
 echo "---"
 echo "
-LIST 'PROJECT CODEBUILD':
+LIST 'PROJECT NAME':
 
 $(listProject)
 
