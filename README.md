@@ -33,6 +33,7 @@ AVAILABLE 'ARG':
   --scale-ng           Scale Up nodegroup eks 
   --ng                 Get EKS Cluster nodegroup list
   --init-pv            Setup EKS Cluster persistence volume AWS EBS Driver  
+  --init-fargate       EKS using fargate worker
 
 USAGE:
 ./awscli <ARG> <PROJECT NAME>
